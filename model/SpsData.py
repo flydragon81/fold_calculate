@@ -1,6 +1,6 @@
 from FixedWidthTextParser.Seismic.SpsParser import Sps21Parser, Point, Relation
 from model.Template import Template
-from model.helpers import create_new_point
+from model.helpers import create_new_point_ln_pn_idx
 from model.Stats import Stats
 
 
@@ -14,6 +14,17 @@ class SpsData:
         self.__stats_calculated = False
         self.__stats_sps = []  # src stats
         self.__stats_rps = []  # rcv stats
+
+        self.__sps_dict: dict = {}  # key is combined line point idx, value is point object
+        self.__rps_dict: dict = {}  # key is line, value is list of point object
+
+    def load_all(self, rps_file, sps_file, xps_file):
+        self.set_rps(rps_file)
+        self.set_sps(sps_file)
+        self.set_xps(xps_file)
+        self.calculate_stats()
+        self.__covert_sps_to_dict()
+        self.__covert_rps_to_dict()
 
     def get_rps(self):
         return self.__rps
@@ -71,7 +82,7 @@ class SpsData:
                     else:
                         if template is not None:
                             templates.append(template)
-                        point = create_new_point(rel.line, rel.point, rel.point_idx)
+                        point = create_new_point_ln_pn_idx(rel.line, rel.point, rel.point_idx)
                         template = Template(point)
                         template.add_relation(rel)
                     osln = rel.line
@@ -143,7 +154,7 @@ class SpsData:
         return self.__get_point_for_line_point(src_line, src_point, self.__sps)
 
     @staticmethod
-    def __get_point_for_line_point(line_number,point_number, point: list):
+    def __get_point_for_line_point(line_number, point_number, point: list):
         points = []
         for po in point:
             if po.line == line_number and po.point == point_number:
@@ -210,3 +221,27 @@ class SpsData:
         newst.fp = po.point
         newst.lp = po.point
         stats_list.append(newst)
+
+    @staticmethod
+    def combine_point_number(point: Point):
+        return str(point.line) + str(point.point) + str(point.point_idx)
+
+    def __covert_sps_to_dict(self):
+        for point in self.__sps:
+            self.__sps_dict[SpsData.combine_point_number(point)] = point
+
+    def __covert_rps_to_dict(self):
+        for point in self.__rps:
+            number = point.line
+            if number in self.__rps_dict.keys():
+                self.__rps_dict[number].append(point)
+            else:
+                self.__rps_dict[number] = [point]
+
+
+
+    def get_sps_dict(self):
+        return self.__sps_dict
+
+    def get_rps_dict(self):
+        return self.__rps_dict

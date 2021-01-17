@@ -1,12 +1,12 @@
 from FixedWidthTextParser.Seismic.SpsParser import Point
 
 
-def create_new_point_ln_pn_idx(line, point, idx):
+def create_point_by_line_point_idx(line_number, point_number, point_idx):
     data = [
         None,
-        line,
-        point,
-        idx,
+        line_number,
+        point_number,
+        point_idx,
         None,
         None,
         None,
@@ -17,48 +17,29 @@ def create_new_point_ln_pn_idx(line, point, idx):
         None,
         None,
         None,
-        None
+        None,
     ]
+
     return Point(data)
 
 
-def create_new_point_ln_pn(line, point):
-    data = [
-        None,
-        line,
-        point,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None
-    ]
-    return Point(data)
-
-
-def create_new_point_x_y(x, y,idx):
+def create_point_by_easting_northing(easting: float, northing: float):
     data = [
         None,
         None,
         None,
-        idx,
         None,
         None,
         None,
         None,
         None,
-        x,
-        y,
+        None,
+        None,
+        easting,
+        northing,
         None,
         None,
         None,
-        None
     ]
+
     return Point(data)

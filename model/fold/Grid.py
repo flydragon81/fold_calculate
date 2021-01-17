@@ -1,45 +1,82 @@
 from typing import final
-from class_attr_check import auto_attr_check
 import sys
 from model.SpsData import SpsData
 from FixedWidthTextParser.Seismic.SpsParser import Point
 import math
-from model.helpers import create_new_point, create_new_point0
+from model.helpers import create_new_point_ln_pn_idx, create_new_point_x_y
+import pickle, json
 
 
-@auto_attr_check
 @final
 class Grid:
     NGEXT = 50
     NBEXT = 20
-    x0 = float
-    y0 = float
-    rot = float
-    dxb = float
-    dyb = float
-    nxb = int
-    nyb = int
-    lockx0 = bool
-    locky0 = bool
-    lockrot = bool
-    lockdxb = bool
-    lockdyb = bool
-    locknxb = bool
-    locknyb = bool
-    rot_src = float
-    rot_rcv = float
-    d_src = float
-    d_rcv = float
-    __corners = []
+
+    def __init__(self, x0: float = 0.0, y0: float = 0.0, rot: float = 0.0,
+                 dxb: float = 0.0, dyb: float = 0.0, nxb: int = 0, nyb: int = 0):
+        self.__x0 = x0
+        self.__y0 = y0
+        self.__rot = rot
+        self.__dxb = dxb
+        self.__dyb = dyb
+        self.__nxb = nxb
+        self.__nyb = nyb
+        self.__corners = [None, None, None, None]
+
+    def get_x0(self):
+        return self.__x0
+
+    def get_y0(self):
+        return self.__y0
+
+    def get_rot(self):
+        return self.__rot
+
+    def get_dxb(self):
+        return self.__dxb
+
+    def get_dyb(self):
+        return self.__dyb
+
+    def get_nxb(self):
+        return self.__nxb
+
+    def get_nyb(self):
+        return self.__nyb
 
     def get_corners(self):
         return self.__corners
 
-    def reset_helper(self):
-        self.rot_src = 0
-        self.rot_rcv = 0
-        self.d_src = 0
-        self.d_rcv = 0
+    def write_object(self, filename):
+        file = open(filename, 'wb')
+        pickle.dump(self, file)
+        file.close()
+
+    @staticmethod
+    def read_object(filename):
+        file = open(filename, 'rb')
+        obj: Grid = pickle.load(file)
+        file.close()
+        return obj
+
+    def write(self, filename):
+        grid_dict = {'x0': self.__x0, 'y0': self.__y0, 'rot': self.__rot, 'dxb': self.__dxb,
+                     'dyb': self.__dyb, 'nxb': self.__nxb, 'nyb': self.__nyb}
+        file = open(filename, 'w')
+        json.dump(grid_dict, file)
+        file.close()
+
+    def read(self, filename):
+        file = open(filename, 'r')
+        grid_dict = json.load(file)
+        self.__x0 = grid_dict['x0']
+        self.__y0 = grid_dict['y0']
+        self.__rot = grid_dict['rot']
+        self.__dxb = grid_dict['dxb']
+        self.__dyb = grid_dict['dyb']
+        self.__nxb = grid_dict['nxb']
+        self.__nyb = grid_dict['nyb']
+        file.close()
 
     @staticmethod
     def __min_float():
@@ -49,13 +86,12 @@ class Grid:
     def __max_float():
         return sys.float_info.max
 
-    def calculate_corners(self, sps_data: SpsData, sps, rps):
+    def calculate_corners(self, sps_data: SpsData):
         min_x = sys.float_info.max
         max_x = sys.float_info.min
         min_y = sys.float_info.max
         max_y = sys.float_info.min
-        sps_data.set_sps(sps)
-        sps_data.set_rps(rps)
+
         src_point = sps_data.get_sps()
         rcv_point = sps_data.get_rps()
 
@@ -91,75 +127,3 @@ class Grid:
             if y > max_y:
                 self.__corners[3] = point
                 max_y = y
-
-    def point_rotate_x_y(self, point: Point):
-        new_point = create_new_point(point.line, point.point, point.point_idx)
-        x = point.easting
-        y = point.northing
-        x0 = float(self.x0)
-        y0 = float(self.y0)
-        rot = float(self.rot)
-
-        if (rot == 45) or (rot == -45):
-            rot += 0.00000000000000001
-        dx = x - x0
-        dy = y - y0
-        a = math.sqrt(math.pow(dx, 2) + math.pow(dy, 2))
-        beta = math.atan(dy / dx)
-        gama = math.pi / 2 - rot / 180 * math.pi - beta
-        rotx = x0 + a * math.sin(gama)
-        roty = y0 + a * math.cos(gama)
-        new_point = (rotx, roty, point.point_idx)
-
-        return new_point
-
-    def point_rotate(self, sps_data: SpsData):
-
-        self.lockrot = False
-        self.lockdxb = False
-        self.lockdyb = False
-
-        RLNmaxN = sps_data.get_line_for_max_n_rps()
-        minpn = sps_data.get_line_stats_for_rcv_line(RLNmaxN).fp
-        maxpn = sps_data.get_line_stats_for_rcv_line(RLNmaxN).lp
-        RLn = sps_data.get_n_points_for_rcv_line(RLNmaxN)
-
-        minRP = sps_data.get_point_for_rcv_line_point(RLNmaxN, minpn)
-        maxRP = sps_data.get_point_for_rcv_line_point(RLNmaxN, maxpn)
-
-        lenR = math.sqrt(math.pow((minRP.easting - maxRP.easting), 2) +
-                         math.pow((minRP.northing - maxRP.northing), 2))
-        dRly = maxRP.northing - minRP.northing
-        self.rot_rcv = math.acos(dRly / lenR) * 180 / math.pi
-        self.d_rcv = lenR / (RLn - 1)
-
-        SLNmaxN = sps_data.get_line_for_max_n_sps()
-        minpn = sps_data.get_line_stats_for_src_line(SLNmaxN).fp
-        maxpn = sps_data.get_line_stats_for_src_line(SLNmaxN).lp
-        SLn = sps_data.get_n_points_for_src_line(SLNmaxN)
-
-        minSP = sps_data.get_point_for_src_line_point(SLNmaxN, minpn)
-        maxSP = sps_data.get_point_for_src_line_point(SLNmaxN, maxpn)
-
-        lenS = math.sqrt(math.pow((minSP.easting - maxSP.easting), 2) +
-                         math.pow((minSP.northing - maxSP.northing), 2))
-        dSly = maxSP.northing - minSP.northing
-        self.rot_src = math.acos(dSly / lenS) * 180 / math.pi
-        self.d_src = lenS / (SLn - 1)
-
-        if self.rot_rcv < self.rot_src:
-            if self.lockrot == False:
-                self.rot = self.rot_rcv
-            if self.lockdxb == False:
-                self.dxb = self.d_src / 2
-            if self.lockdyb == False:
-                self.dyb = self.rot_rcv / 2
-        else:
-            if self.lockrot == False:
-                self.rot = self.rot_src
-            if self.lockdxb == False:
-                self.dxb = self.d_rcv / 2
-            if self.lockdyb == False:
-                self.dyb = self.rot_src / 2
-
-        return lenR, lenS
